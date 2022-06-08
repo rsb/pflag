@@ -2,8 +2,11 @@ package pflag
 
 import (
 	goflag "flag"
+	"fmt"
 	"io"
 	"os"
+
+	"github.com/rsb/failure"
 )
 
 // FlagSet represents a collection of defined flags.
@@ -28,7 +31,7 @@ type FlagSet struct {
 	formal            map[NormalizedName]*Flag
 	orderedFormal     []*Flag
 	sortedFormal      []*Flag
-	shorthands        map[byte]*Flag
+	shorts            map[byte]*Flag
 	args              []string // arguments after flags
 	argsLenAtDash     int      // len(args) when a '--' was located when parsing, or -1 if no --
 	errorHandling     ErrorHandling
@@ -99,10 +102,6 @@ func (f *FlagSet) GetNormalizeFunc() func(f *FlagSet, name string) NormalizedNam
 	return func(f *FlagSet, name string) NormalizedName { return NormalizedName(name) }
 }
 
-func (f *FlagSet) normalizeFlagName(name string) NormalizedName {
-	return f.GetNormalizeFunc()(f, name)
-}
-
 // Output returns the destination for usage and error messages. os.Stderr is
 // returned if output was not set or was set to nil
 func (f *FlagSet) Output() io.Writer {
@@ -116,4 +115,100 @@ func (f *FlagSet) Output() io.Writer {
 // if output is nil, os.Stderr is used.
 func (f *FlagSet) SetOutput(o io.Writer) {
 	f.output = o
+}
+
+// Name returns the name of the flag set.
+func (f *FlagSet) Name() string {
+	return f.name
+}
+
+// VisitAll visits the flags in lexicographical order of in primordial
+// order if f.SortFlags is false, calling fn for each.
+// It visits all flags, even those not set.
+func (f *FlagSet) VisitAll(fn func(*Flag)) {
+	if len(f.formal) == 0 {
+		return
+	}
+
+	var flags []*Flag
+	if f.SortFlags {
+		if len(f.formal) != len(f.sortedFormal) {
+			f.sortedFormal = sortFlags(f.formal)
+		}
+		flags = f.sortedFormal
+	} else {
+		flags = f.orderedFormal
+	}
+
+	for _, flag := range flags {
+		fn(flag)
+	}
+}
+
+// HasFlags return a bool to indicate if the FlagSet has any flags defined
+func (f *FlagSet) HasFlags() bool {
+	return len(f.formal) > 0
+}
+
+// HasAvailableFlags returns a bool to indicate if the FlagSet has any flags
+// that are not hidden.
+func (f *FlagSet) HasAvailableFlags() bool {
+	for _, flag := range f.formal {
+		if !flag.Hidden {
+			return true
+		}
+	}
+	return false
+}
+
+// Lookup returns the Flag structure of the named flag, returning nil
+// if none exists
+func (f *FlagSet) Lookup(name string) *Flag {
+	return f.lookup(f.normalizeFlagName(name))
+}
+
+// ShortLookup returns the Flag structure of the short-handed flag,
+// returning nil if none exists.
+// It panics, if len(name) > 1.
+func (f *FlagSet) ShortLookup(name string) *Flag {
+	if name == "" {
+		return nil
+	}
+	if len(name) > 1 {
+		msg := fmt.Sprintf(
+			"can not look up short flag which is more than one ASCII character: %q",
+			name,
+		)
+		_, _ = fmt.Fprintf(f.Output(), msg)
+		panic(msg)
+	}
+	c := name[0]
+	return f.shorts[c]
+}
+
+// ArgsLenAtDash will return the length of f.Args at the moment when a -- was
+// found during arg parsing. This allows your program to know which args were
+// before the -- and which came after.
+func (f *FlagSet) ArgsLenAtDash() int {
+	return f.argsLenAtDash
+}
+
+// MarkDeprecated indicated that a flag is deprecated in your program. It will
+// continue to function but will not show up in help or usage messages. Using
+// this flag will also print the given message.
+func (f *FlagSet) MarkDeprecated(name, usage string) error {
+	flag := f.Lookup(name)
+	if flag == nil {
+		return failure.NotFound("flag (%s), does not exist", name)
+	}
+}
+
+// lookup returns the Flag structure of the named flag, returning nil
+// if none exists.
+func (f *FlagSet) lookup(name NormalizedName) *Flag {
+	return f.formal[name]
+}
+
+func (f *FlagSet) normalizeFlagName(name string) NormalizedName {
+	return f.GetNormalizeFunc()(f, name)
 }
