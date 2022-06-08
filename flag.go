@@ -1,9 +1,27 @@
 package pflag
 
 import (
-	goflag "flag"
-	"io"
+	"errors"
+	"os"
 	"sort"
+)
+
+// CommandLine is the default set of command-line flags, parsed from os.Args.
+var CommandLine = NewFlagSet(os.Args[0], ExitOnError)
+
+// ErrHelp is the error returned if the flag -help is invoked but no such flag is defined.
+var ErrHelp = errors.New("pflag: help requested")
+
+// ErrorHandling defines how to handle flag parsing errors.
+type ErrorHandling int
+
+const (
+	// ContinueOnError will return an err from Parse() if an error is found
+	ContinueOnError ErrorHandling = iota
+	// ExitOnError will call os.Exit(2) if an error is found when parsing
+	ExitOnError
+	// PanicOnError will panic() if an error is found when parsing flags
+	PanicOnError
 )
 
 // NormalizedName is a flag name that has been normalized according to rules
@@ -14,38 +32,6 @@ type NormalizedName string
 type ParseErrorsWhitelist struct {
 	// UnknownFlags will ignore unknown flags errors and continue parsing rest of the flags
 	UnknownFlags bool
-}
-
-// FlagSet represents a collection of defined flags.
-type FlagSet struct {
-	// Usage is the function called when an error occurs while parsing flags.
-	// The field is a function (not a method) that may be changed to point to
-	// a custom error handler
-	Usage func()
-
-	// SortFlags is used to indicate, if user wants to have sorted flags in
-	// help/usage message
-	SortFlags bool
-
-	// ParseErrorsWhitelist is used to configure a whitelist of errors
-	ParseErrorsWhitelist ParseErrorsWhitelist
-
-	name              string
-	parsed            bool
-	actual            map[NormalizedName]*Flag
-	orderedActual     []*Flag
-	sortedActual      []*Flag
-	formal            map[NormalizedName]*Flag
-	orderedFormal     []*Flag
-	sortedFormal      []*Flag
-	shorthands        map[byte]*Flag
-	args              []string  // arguments after flags
-	argsLenAtDash     int       // len(args) when a '--' was located when parsing, or -1 if no --
-	output            io.Writer // nil means stderr; use Output() accessor
-	interspersed      bool      // allow interspersed option/non-option args
-	normalizeNameFunc func(f *FlagSet, name string) NormalizedName
-
-	addedGoFlagSets []*goflag.FlagSet
 }
 
 // Flag represents the state of a command line flag.
