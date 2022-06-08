@@ -195,12 +195,83 @@ func (f *FlagSet) ArgsLenAtDash() int {
 
 // MarkDeprecated indicated that a flag is deprecated in your program. It will
 // continue to function but will not show up in help or usage messages. Using
-// this flag will also print the given message.
+// this flag will also print the given usage.
 func (f *FlagSet) MarkDeprecated(name, usage string) error {
 	flag := f.Lookup(name)
 	if flag == nil {
 		return failure.NotFound("flag (%s), does not exist", name)
 	}
+
+	if usage == "" {
+		return failure.InvalidParam("usage is empty, deprecated msg for (%s) must be set", name)
+	}
+
+	flag.Deprecated = usage
+	flag.Hidden = true
+	return nil
+}
+
+// MarkShortDeprecated will mark the shorthand of a flag deprecated in your
+// program. It will continue to function but will not show up in help or
+// usage messages. Using this flag will also print the given usage
+func (f *FlagSet) MarkShortDeprecated(name, usage string) error {
+	flag := f.Lookup(name)
+	if flag == nil {
+		return failure.NotFound("flag (%s), does not exist", name)
+	}
+
+	if usage == "" {
+		return failure.InvalidParam("usage is empty, deprecated msg for (%s) must be set", name)
+	}
+
+	flag.ShortDeprecated = usage
+	return nil
+}
+
+// MarkHidden sets the flag to 'hidden' in your program.  It will continue to
+// function but will not show up in help or usage messages.
+func (f *FlagSet) MarkHidden(name string) error {
+	flag := f.Lookup(name)
+	if flag == nil {
+		return failure.NotFound("flag (%s), does not exist", name)
+	}
+
+	flag.Hidden = true
+	return nil
+}
+
+// Set sets the value of the named flag
+func (f *FlagSet) Set(name, value string) error {
+	normalName := f.normalizeFlagName(name)
+	flag := f.lookup(normalName)
+	if flag == nil {
+		return failure.NotFound("flag (%s), does not exist", name)
+	}
+
+	if err := flag.Value.Set(value); err != nil {
+		var flagName string
+		if flag.Short != "" && flag.ShortDeprecated == "" {
+			flagName = fmt.Sprintf("-%s, --%s", flag.Short, flag.Name)
+		} else {
+			flagName = fmt.Sprintf("--%s", flag.Name)
+		}
+		return failure.InvalidParam("invalid argument %q for %q flag: %v", value, flagName, err)
+	}
+
+	if !flag.Changed {
+		if f.actual == nil {
+			f.actual = make(map[NormalizedName]*Flag)
+		}
+		f.actual[normalName] = flag
+		f.orderedActual = append(f.orderedActual, flag)
+		flag.Changed = true
+	}
+
+	if flag.Deprecated != "" {
+		fmt.Fprintf(f.Output(), "Flag --%s has been deprecated, %s\n", flag.Name, flag.Deprecated)
+	}
+
+	return nil
 }
 
 // lookup returns the Flag structure of the named flag, returning nil
