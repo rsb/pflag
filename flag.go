@@ -2,8 +2,10 @@ package pflag
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 // CommandLine is the default set of command-line flags, parsed from os.Args.
@@ -49,6 +51,38 @@ type Flag struct {
 	Annotations     map[string][]string // used for bash autocomplete code
 }
 
+// defaultIsZeroValue returns true if the default value for this flag represents
+// a zero value.
+func (f *Flag) defaultIsZeroValue() bool {
+	switch f.Value.(type) {
+	case boolFlag:
+		return f.Default == "false"
+	case *durationValue:
+		// Beginning in Go 1.7, duration zero values are "0s"
+		return f.Default == "0" || f.Default == "0s"
+	case *intValue, *int8Value, *int32Value, *int64Value, *uintValue, *uint8Value, *uint16Value, *uint32Value, *uint64Value, *countValue, *float32Value, *float64Value:
+		return f.Default == "0"
+	case *stringValue:
+		return f.Default == ""
+	case *ipValue, *ipMaskValue, *ipNetValue:
+		return f.Default == "<nil>"
+	case *intSliceValue, *stringSliceValue, *stringArrayValue:
+		return f.Default == "[]"
+	default:
+		switch f.Value.String() {
+		case "false":
+			return true
+		case "<nil>":
+			return true
+		case "":
+			return true
+		case "0":
+			return true
+		}
+		return false
+	}
+}
+
 // Value is the interface to the dynamic value stored in a flag.
 // (The default value is represented as a string.)
 type Value interface {
@@ -83,4 +117,146 @@ func sortFlags(flags map[NormalizedName]*Flag) []*Flag {
 		result[i] = flags[NormalizedName(name)]
 	}
 	return result
+}
+
+// UnquoteUsage extracts a back-quoted name from the usage
+// string for a flag and returns it and the un-quoted usage.
+// Given "a `name` to show" it returns ("name", "a name to show").
+// If there are no back quotes, the name is an educated guess of the
+// type of the flag's value, or the empty string if the flag is boolean.
+func UnquoteUsage(flag *Flag) (name string, usage string) {
+	// Look for a back-quoted name, but avoid the strings package.
+	usage = flag.Usage
+	for i := 0; i < len(usage); i++ {
+		if usage[i] == '`' {
+			for j := i + 1; j < len(usage); j++ {
+				if usage[j] == '`' {
+					name = usage[i+1 : j]
+					usage = usage[:i] + name + usage[j+1:]
+					return name, usage
+				}
+			}
+			break // Only one back quote; use type name.
+		}
+	}
+
+	name = flag.Value.Type()
+	switch name {
+	case "bool":
+		name = ""
+	case "float64":
+		name = "float"
+	case "int64":
+		name = "int"
+	case "uint64":
+		name = "uint"
+	case "stringSlice":
+		name = "strings"
+	case "intSlice":
+		name = "ints"
+	case "uintSlice":
+		name = "uints"
+	case "boolSlice":
+		name = "bools"
+	}
+
+	return
+}
+
+// Wraps the string `s` to a maximum width `w` with leading indent
+// `i`. The first line is not indented (this is assumed to be done by
+// caller). Pass `w` == 0 to do no wrapping
+func wrap(i, w int, s string) string {
+	if w == 0 {
+		return strings.Replace(s, "\n", "\n"+strings.Repeat(" ", i), -1)
+	}
+
+	// space between indent i and end of line width w into which
+	// we should wrap the text.
+	wrap := w - i
+
+	var r, l string
+
+	// Not enough space for sensible wrapping. Wrap as a block on
+	// the next line instead.
+	if wrap < 24 {
+		i = 16
+		wrap = w - i
+		r += "\n" + strings.Repeat(" ", i)
+	}
+	// If still not enough space then don't even try to wrap.
+	if wrap < 24 {
+		return strings.Replace(s, "\n", r, -1)
+	}
+
+	// Try to avoid short orphan words on the final line, by
+	// allowing wrapN to go a bit over if that would fit in the
+	// remainder of the line.
+	slop := 5
+	wrap = wrap - slop
+
+	// Handle first line, which is indented by the caller (or the
+	// special case above)
+	l, s = wrapN(wrap, slop, s)
+	r = r + strings.Replace(l, "\n", "\n"+strings.Repeat(" ", i), -1)
+
+	// Now wrap the rest
+	for s != "" {
+		var t string
+
+		t, s = wrapN(wrap, slop, s)
+		r = r + "\n" + strings.Repeat(" ", i) + strings.Replace(t, "\n", "\n"+strings.Repeat(" ", i), -1)
+	}
+
+	return r
+
+}
+
+// Splits the string `s` on whitespace into an initial substring up to
+// `i` runes in length and the remainder. Will go `slop` over `i` if
+// that encompasses the entire string (which allows the caller to
+// avoid short orphan words on the final line).
+func wrapN(i, slop int, s string) (string, string) {
+	if i+slop > len(s) {
+		return s, ""
+	}
+
+	w := strings.LastIndexAny(s[:i], " \t\n")
+	if w <= 0 {
+		return s, ""
+	}
+	nlPos := strings.LastIndex(s[:i], "\n")
+	if nlPos > 0 && nlPos < w {
+		return s[:nlPos], s[nlPos+1:]
+	}
+	return s[:w], s[w+1:]
+}
+
+// stripUnknownFlagValues takes care of cases like:
+// --unknown (args will be empty)
+// --unknown --next-flag ... (args will be --next-flag ...)
+// --unknown arg ... (args will be arg ...)
+func stripUnknownFlagValue(args []string) []string {
+	if len(args) == 0 {
+		// --unknown
+		return args
+	}
+
+	first := args[0]
+	if len(first) > 0 && first[0] == '-' {
+		// --unknown --next-flag ...
+		return args
+	}
+
+	// --unknown arg ... (args will be arg ...)
+	if len(args) > 1 {
+		return args[1:]
+	}
+	return nil
+}
+
+// defaultUsage is the default function to print a usage message.
+func defaultUsage(f *FlagSet) {
+	_, _ = fmt.Fprintf(f.Output(), "Usage of %s:\n", f.name)
+	f.PrintDefaults()
 }
