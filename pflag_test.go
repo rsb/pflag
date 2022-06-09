@@ -4,6 +4,7 @@ import (
 	"github.com/rsb/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -125,4 +126,32 @@ func TestAddFlagSet(t *testing.T) {
 	f3Old := oldSet.Lookup("flag3")
 	require.NotNil(t, f3Old)
 	assert.Equal(t, f3, f3Old)
+}
+
+func TestAnnotation(t *testing.T) {
+	f := pflag.NewFlagSet("shorthand", pflag.ContinueOnError)
+
+	err := f.SetAnnotation("missing-flag", "key", nil)
+	require.Error(t, err, "Expected error setting annotation on non-existent flag")
+
+	f.StringP("stringa", "a", "", "string value")
+	err = f.SetAnnotation("stringa", "key", nil)
+	require.NoError(t, err, "f.SetAnnotation is not expected to fail with nil value")
+
+	annotation := f.Lookup("stringa").Annotations["key"]
+	require.Nil(t, annotation, "Not expecting to find annotation")
+
+	f.StringP("stringb", "b", "", "string2 value")
+
+	err = f.SetAnnotation("stringb", "key", []string{"value1"})
+	require.NoError(t, err, "f.SetAnnotation is not expected to fail")
+
+	annotation = f.Lookup("stringb").Annotations["key"]
+	require.True(t, reflect.DeepEqual(annotation, []string{"value1"}))
+
+	err = f.SetAnnotation("stringb", "key", []string{"value2"})
+	require.NoError(t, err, "f.SetAnnotation is not expected to fail")
+
+	annotation = f.Lookup("stringb").Annotations["key"]
+	require.True(t, reflect.DeepEqual(annotation, []string{"value2"}))
 }
