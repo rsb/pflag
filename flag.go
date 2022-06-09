@@ -260,3 +260,22 @@ func defaultUsage(f *FlagSet) {
 	_, _ = fmt.Fprintf(f.Output(), "Usage of %s:\n", f.name)
 	f.PrintDefaults()
 }
+
+// Set sets the value of the named command-line flag.
+func Set(name, value string) error {
+	return CommandLine.Set(name, value)
+}
+
+// VisitAll visits the command-line flags in lexicographical order or
+// in primordial order if f.SortFlags is false, calling fn for each.
+// It visits all flags, even those not set.
+func VisitAll(fn func(*Flag)) {
+	CommandLine.VisitAll(fn)
+}
+
+// Visit visits the command-line flags in lexicographical order or
+// in primordial order if f.SortFlags is false, calling fn for each.
+// It visits only those flags that have been set.
+func Visit(fn func(*Flag)) {
+	CommandLine.Visit(fn)
+}
