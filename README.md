@@ -11,9 +11,11 @@ for command-line options][1]. For a more precise description, see the
 pflag is available under the same style of BSD license as the Go language,
 which can be found in the LICENSE file.
 
-This package is heavily influenced by [spf13's pflag](https://github.com/spf13/plag). 
-I wanted to use all the same concepts but keep all values a string since I have
-other packages that will convert the string into its type based of a struct annotation
+
+> Much of the code is derived from "[spf13/pflag](https://github.com/spf13/pflag)" by Steve Francia. Thank you 
+> for your contribution which allows me build out this package.
+> 
+> The key difference between the packages is in how the types are handled
 
 
 ## Installation

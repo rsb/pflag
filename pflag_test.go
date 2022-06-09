@@ -91,7 +91,4 @@ func TestEverything(t *testing.T) {
 	var flagNames []string
 	pflag.Visit(func(f *pflag.Flag) { flagNames = append(flagNames, f.Name) })
 	require.True(t, sort.StringsAreSorted(flagNames), "flag names are not sorted: %v", flagNames)
-	if !sort.StringsAreSorted(flagNames) {
-		t.Errorf("flag names not sorted: %v", flagNames)
-	}
 }
