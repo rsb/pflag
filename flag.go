@@ -3,6 +3,7 @@ package pflag
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -13,6 +14,19 @@ var CommandLine = NewFlagSet(os.Args[0], ExitOnError)
 
 // ErrHelp is the error returned if the flag -help is invoked but no such flag is defined.
 var ErrHelp = errors.New("pflag: help requested")
+
+// NOTE: Usage is not just defaultUsage(CommandLine)
+// because it serves (via godoc flag Usage) as the example
+// for how to write your own usage function.
+
+// Usage prints to standard error a usage message documenting all defined command-line flags.
+// The function is a variable that may be changed to point to a custom function.
+// By default, it prints a simple header and calls PrintDefaults; for details about the
+// format of the output and how to control it, see the documentation for PrintDefaults.
+var Usage = func() {
+	_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	PrintDefaults()
+}
 
 // ErrorHandling defines how to handle flag parsing errors.
 type ErrorHandling int
@@ -261,6 +275,11 @@ func defaultUsage(f *FlagSet) {
 	f.PrintDefaults()
 }
 
+// GetCommandLine returns the default FlagSet.
+func GetCommandLine() *FlagSet {
+	return CommandLine
+}
+
 // Set sets the value of the named command-line flag.
 func Set(name, value string) error {
 	return CommandLine.Set(name, value)
@@ -278,4 +297,23 @@ func VisitAll(fn func(*Flag)) {
 // It visits only those flags that have been set.
 func Visit(fn func(*Flag)) {
 	CommandLine.Visit(fn)
+}
+
+// PrintDefaults prints to standard error the default values of all defined command-line flags.
+func PrintDefaults() {
+	CommandLine.PrintDefaults()
+}
+
+// Additional routines compiled into the package only during testing.
+
+// ResetForTesting clears all flag state and sets the usage function as directed.
+// After calling ResetForTesting, parse errors in flag handling will not
+// exit the program.
+func ResetForTesting(usage func()) {
+	CommandLine = &FlagSet{
+		name:          os.Args[0],
+		errorHandling: ContinueOnError,
+		output:        ioutil.Discard,
+	}
+	Usage = usage
 }

@@ -92,3 +92,11 @@ func TestEverything(t *testing.T) {
 	pflag.Visit(func(f *pflag.Flag) { flagNames = append(flagNames, f.Name) })
 	require.True(t, sort.StringsAreSorted(flagNames), "flag names are not sorted: %v", flagNames)
 }
+
+func TestUsage(t *testing.T) {
+	called := false
+	pflag.ResetForTesting(func() { called = true })
+	err := pflag.GetCommandLine().Parse([]string{"--x"})
+	require.Error(t, err, "parse did not fail for unknown flag")
+	require.False(t, called, "did call Usage while using ContinueOnError")
+}
