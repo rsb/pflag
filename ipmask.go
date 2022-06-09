@@ -63,3 +63,60 @@ func parseIPv4Mask(sval string) (interface{}, error) {
 	}
 	return mask, nil
 }
+
+// GetIPv4Mask return the net.IPv4Mask value of a flag with the given name
+func (f *FlagSet) GetIPv4Mask(name string) (net.IPMask, error) {
+	val, err := f.getFlagType(name, "ipMask", parseIPv4Mask)
+	if err != nil {
+		return nil, err
+	}
+	return val.(net.IPMask), nil
+}
+
+// IPMaskVar defines an net.IPMask flag with specified name, default value, and usage string.
+// The argument p points to an net.IPMask variable in which to store the value of the flag.
+func (f *FlagSet) IPMaskVar(p *net.IPMask, name string, value net.IPMask, usage string) {
+	f.VarP(newIPMaskValue(value, p), name, "", usage)
+}
+
+// IPMaskVarP is like IPMaskVar, but accepts a shorthand letter that can be used after a single dash.
+func (f *FlagSet) IPMaskVarP(p *net.IPMask, name, shorthand string, value net.IPMask, usage string) {
+	f.VarP(newIPMaskValue(value, p), name, shorthand, usage)
+}
+
+// IPMaskVar defines an net.IPMask flag with specified name, default value, and usage string.
+// The argument p points to an net.IPMask variable in which to store the value of the flag.
+func IPMaskVar(p *net.IPMask, name string, value net.IPMask, usage string) {
+	CommandLine.VarP(newIPMaskValue(value, p), name, "", usage)
+}
+
+// IPMaskVarP is like IPMaskVar, but accepts a shorthand letter that can be used after a single dash.
+func IPMaskVarP(p *net.IPMask, name, shorthand string, value net.IPMask, usage string) {
+	CommandLine.VarP(newIPMaskValue(value, p), name, shorthand, usage)
+}
+
+// IPMask defines an net.IPMask flag with specified name, default value, and usage string.
+// The return value is the address of an net.IPMask variable that stores the value of the flag.
+func (f *FlagSet) IPMask(name string, value net.IPMask, usage string) *net.IPMask {
+	p := new(net.IPMask)
+	f.IPMaskVarP(p, name, "", value, usage)
+	return p
+}
+
+// IPMaskP is like IPMask, but accepts a shorthand letter that can be used after a single dash.
+func (f *FlagSet) IPMaskP(name, shorthand string, value net.IPMask, usage string) *net.IPMask {
+	p := new(net.IPMask)
+	f.IPMaskVarP(p, name, shorthand, value, usage)
+	return p
+}
+
+// IPMask defines an net.IPMask flag with specified name, default value, and usage string.
+// The return value is the address of an net.IPMask variable that stores the value of the flag.
+func IPMask(name string, value net.IPMask, usage string) *net.IPMask {
+	return CommandLine.IPMaskP(name, "", value, usage)
+}
+
+// IPMaskP is like IP, but accepts a shorthand letter that can be used after a single dash.
+func IPMaskP(name, shorthand string, value net.IPMask, usage string) *net.IPMask {
+	return CommandLine.IPMaskP(name, shorthand, value, usage)
+}
