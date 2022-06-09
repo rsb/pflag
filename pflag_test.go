@@ -100,3 +100,29 @@ func TestUsage(t *testing.T) {
 	require.Error(t, err, "parse did not fail for unknown flag")
 	require.False(t, called, "did call Usage while using ContinueOnError")
 }
+
+func TestAddFlagSet(t *testing.T) {
+	oldSet := pflag.NewFlagSet("old", pflag.ContinueOnError)
+	newSet := pflag.NewFlagSet("new", pflag.ContinueOnError)
+
+	oldSet.String("flag1", "flag1", "flag1")
+	oldSet.String("flag2", "flag2", "flag2")
+
+	newSet.String("flag2", "flag2", "flag2")
+	newSet.String("flag3", "flag3", "flag3")
+
+	f2 := newSet.Lookup("flag2")
+	require.NotNil(t, f2)
+	f3 := newSet.Lookup("flag3")
+	require.NotNil(t, f3)
+
+	oldSet.AddFlagSet(newSet)
+
+	f2Old := oldSet.Lookup("flag2")
+	require.NotNil(t, f2Old)
+	assert.Equal(t, f2, f2Old)
+
+	f3Old := oldSet.Lookup("flag3")
+	require.NotNil(t, f3Old)
+	assert.Equal(t, f3, f3Old)
+}
