@@ -1,11 +1,14 @@
 package pflag_test
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/rsb/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -43,7 +46,6 @@ func setup() {
 }
 
 func TestEverything(t *testing.T) {
-	t.Parallel()
 
 	var err error
 	m := make(map[string]*pflag.Flag)
@@ -112,7 +114,6 @@ func TestEverything(t *testing.T) {
 }
 
 func TestUsage(t *testing.T) {
-	t.Parallel()
 	called := false
 	pflag.ResetForTesting(func() { called = true })
 	err := pflag.GetCommandLine().Parse([]string{"--x"})
@@ -121,7 +122,6 @@ func TestUsage(t *testing.T) {
 }
 
 func TestAddFlagSet(t *testing.T) {
-	t.Parallel()
 	oldSet := pflag.NewFlagSet("old", pflag.ContinueOnError)
 	newSet := pflag.NewFlagSet("new", pflag.ContinueOnError)
 
@@ -148,7 +148,6 @@ func TestAddFlagSet(t *testing.T) {
 }
 
 func TestAnnotation(t *testing.T) {
-	t.Parallel()
 	f := pflag.NewFlagSet("shorthand", pflag.ContinueOnError)
 
 	err := f.SetAnnotation("missing-flag", "key", nil)
@@ -177,7 +176,6 @@ func TestAnnotation(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	t.Parallel()
 	flagSetName := "bob"
 	f := pflag.NewFlagSet(flagSetName, pflag.ContinueOnError)
 
@@ -186,7 +184,6 @@ func TestName(t *testing.T) {
 }
 
 func TestShorthand(t *testing.T) {
-	t.Parallel()
 	f := pflag.NewFlagSet("shorthand", pflag.ContinueOnError)
 	if f.Parsed() {
 		t.Error("f.Parse() = true before Parse")
@@ -230,7 +227,6 @@ func TestShorthand(t *testing.T) {
 }
 
 func TestShorthandLookup(t *testing.T) {
-	t.Parallel()
 	f := pflag.NewFlagSet("shorthand", pflag.ContinueOnError)
 	if f.Parsed() {
 		t.Error("f.Parse() = true before Parse")
@@ -263,7 +259,6 @@ func TestShorthandLookup(t *testing.T) {
 }
 
 func TestChangedHelper(t *testing.T) {
-	t.Parallel()
 	f := pflag.NewFlagSet("changedtest", pflag.ContinueOnError)
 	f.Bool("changed", false, "changed bool")
 	f.Bool("settrue", true, "true to true")
@@ -282,4 +277,219 @@ func TestChangedHelper(t *testing.T) {
 	require.False(t, f.Changed("invalid"))
 
 	require.Equal(t, -1, f.ArgsLenAtDash())
+}
+
+func testWordSepNormalizedNames(args []string, t *testing.T) {
+	f := pflag.NewFlagSet("normalized", pflag.ContinueOnError)
+	if f.Parsed() {
+		t.Error("f.Parse() = true before Parse")
+	}
+	withDashFlag := f.Bool("with-dash-flag", false, "bool value")
+	// Set this after some flags have been added and before others.
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	withUnderFlag := f.Bool("with_under_flag", false, "bool value")
+	withBothFlag := f.Bool("with-both_flag", false, "bool value")
+
+	err := f.Parse(args)
+	require.NoError(t, err)
+	require.True(t, f.Parsed())
+	require.True(t, *withDashFlag)
+	require.True(t, *withUnderFlag)
+	require.True(t, *withBothFlag)
+}
+
+func replaceSeparators(name string, from []string, to string) string {
+	result := name
+	for _, sep := range from {
+		result = strings.Replace(result, sep, to, -1)
+	}
+	// Type convert to indicate normalization has been done.
+	return result
+}
+
+func TestWordSepNormalizedNames(t *testing.T) {
+	args := []string{
+		"--with-dash-flag",
+		"--with-under-flag",
+		"--with-both-flag",
+	}
+	testWordSepNormalizedNames(args, t)
+
+	args = []string{
+		"--with_dash_flag",
+		"--with_under_flag",
+		"--with_both_flag",
+	}
+	testWordSepNormalizedNames(args, t)
+
+	args = []string{
+		"--with-dash_flag",
+		"--with-under_flag",
+		"--with-both_flag",
+	}
+	testWordSepNormalizedNames(args, t)
+}
+
+func TestCustomNormalizedNames(t *testing.T) {
+	f := pflag.NewFlagSet("normalized", pflag.ContinueOnError)
+	require.False(t, f.Parsed())
+
+	validFlag := f.Bool("valid-flag", false, "bool value")
+	f.SetNormalizeFunc(aliasAndWordSepFlagNames)
+	someOtherFlag := f.Bool("some-other-flag", false, "bool value")
+
+	args := []string{"--old_valid_flag", "--some-other_flag"}
+
+	err := f.Parse(args)
+	require.NoError(t, err)
+	require.True(t, *validFlag)
+	require.True(t, *someOtherFlag)
+}
+
+// Every flag we add, the name (displayed also in usage) should normalized
+func TestNormalizationFuncShouldChangeFlagName(t *testing.T) {
+	// Test normalization after addition
+	f := pflag.NewFlagSet("normalized", pflag.ContinueOnError)
+
+	f.Bool("valid_flag", false, "bool value")
+	result := f.Lookup("valid_flag")
+	require.Equal(t, "valid_flag", result.Name)
+
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	result = f.Lookup("valid_flag")
+	require.Equal(t, "valid.flag", result.Name)
+
+	// Test normalization before addition
+	f = pflag.NewFlagSet("normalized", pflag.ContinueOnError)
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	f.Bool("valid_flag", false, "bool value")
+
+	result = f.Lookup("valid_flag")
+	require.Equal(t, "valid.flag", result.Name)
+}
+
+// Related to https://github.com/spf13/cobra/issues/521.
+func TestNormalizationSharedFlags(t *testing.T) {
+	f := pflag.NewFlagSet("set f", pflag.ContinueOnError)
+	g := pflag.NewFlagSet("set g", pflag.ContinueOnError)
+
+	nfunc := wordSepNormalizeFunc
+	testName := "valid_flag"
+	normName := nfunc(nil, testName)
+	require.NotEqual(t, testName, string(normName))
+
+	f.Bool(testName, false, "bool value")
+	g.AddFlagSet(f)
+
+	f.SetNormalizeFunc(nfunc)
+	g.SetNormalizeFunc(nfunc)
+
+	require.Len(t, f.Formal(), 1, "Normalizing flags should not result in duplication")
+
+	require.Equal(t, string(normName), f.OrderedFormal()[0].Name)
+	for k := range f.Formal() {
+		require.Equal(t, "valid.flag", string(k))
+	}
+
+	if !reflect.DeepEqual(f.Formal(), g.Formal()) || !reflect.DeepEqual(f.OrderedFormal(), g.OrderedFormal()) {
+		t.Error("Two flag sets sharing the same flags should stay consistent after being normalized. Original set:", f.Formal(), "Duplicate set:", g.Formal())
+	}
+}
+
+func TestNormalizationSetFlags(t *testing.T) {
+	f := pflag.NewFlagSet("normalized", pflag.ContinueOnError)
+	nfunc := wordSepNormalizeFunc
+	testName := "valid_flag"
+	normName := nfunc(nil, testName)
+	require.NotEqual(t, testName, string(normName))
+
+	f.Bool(testName, false, "bool value")
+	err := f.Set(testName, "true")
+	require.NoError(t, err)
+	f.SetNormalizeFunc(nfunc)
+	require.Len(t, f.Formal(), 1)
+
+	require.Equal(t, f.OrderedFormal()[0].Name, string(normName))
+
+	for k := range f.Formal() {
+		require.Equal(t, "valid.flag", string(k))
+	}
+
+	if !reflect.DeepEqual(f.Formal(), f.Actual()) {
+		t.Error("The map of set flags should get normalized. Formal:", f.Formal(), "Actual:", f.Actual())
+	}
+}
+
+// Declare a user-defined flag type.
+type flagVar []string
+
+func (f *flagVar) String() string {
+	return fmt.Sprint([]string(*f))
+}
+
+func (f *flagVar) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
+
+func (f *flagVar) Type() string {
+	return "flagVar"
+}
+
+func TestUserDefined(t *testing.T) {
+	var flags pflag.FlagSet
+	flags.Init("test", pflag.ContinueOnError)
+	var v flagVar
+	flags.VarP(&v, "v", "v", "usage")
+
+	err := flags.Parse([]string{"--v=1", "-v2", "-v", "3"})
+	require.NoError(t, err)
+	require.Len(t, v, 3)
+
+	expect := "[1 2 3]"
+	require.Equal(t, expect, v.String())
+}
+
+func TestSetOutput(t *testing.T) {
+	var flags pflag.FlagSet
+	var buf bytes.Buffer
+	flags.SetOutput(&buf)
+	flags.Init("test", pflag.ContinueOnErrorWithWarn)
+	err := flags.Parse([]string{"--unknown"})
+	require.Error(t, err)
+	require.Contains(t, buf.String(), "--unknown")
+}
+
+func TestOutput(t *testing.T) {
+	var flags pflag.FlagSet
+	var buf bytes.Buffer
+	expect := "an example string"
+	flags.SetOutput(&buf)
+	_, _ = fmt.Fprint(flags.Output(), expect)
+	if out := buf.String(); !strings.Contains(out, expect) {
+		t.Errorf("expected output %q; got %q", expect, out)
+	}
+}
+
+func wordSepNormalizeFunc(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	seps := []string{"-", "_"}
+	name = replaceSeparators(name, seps, ".")
+	normalizeFlagNameInvocations++
+
+	return pflag.NormalizedName(name)
+}
+
+func aliasAndWordSepFlagNames(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	seps := []string{"-", "_"}
+
+	oldName := replaceSeparators("old-valid_flag", seps, ".")
+	newName := replaceSeparators("valid-flag", seps, ".")
+
+	name = replaceSeparators(name, seps, ".")
+	switch name {
+	case oldName:
+		name = newName
+	}
+
+	return pflag.NormalizedName(name)
 }

@@ -32,8 +32,13 @@ var Usage = func() {
 type ErrorHandling int
 
 const (
-	// ContinueOnError will return an err from Parse() if an error is found
+	// ContinueOnError will return err from Parse() if an error is found
 	ContinueOnError ErrorHandling = iota
+
+	// ContinueOnErrorWithWarn will return err from Parse() if an error is found
+	// and will print a warning with
+	ContinueOnErrorWithWarn
+
 	// ExitOnError will call os.Exit(2) if an error is found when parsing
 	ExitOnError
 	// PanicOnError will panic() if an error is found when parsing flags

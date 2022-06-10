@@ -59,6 +59,18 @@ func NewFlagSet(name string, errorHandling ErrorHandling) *FlagSet {
 	return f
 }
 
+func (f *FlagSet) Actual() map[NormalizedName]*Flag {
+	return f.actual
+}
+
+func (f *FlagSet) Formal() map[NormalizedName]*Flag {
+	return f.formal
+}
+
+func (f *FlagSet) OrderedFormal() []*Flag {
+	return f.orderedFormal
+}
+
 // SetInterspersed sets whether to support interspersed option/non-option arguments.
 func (f *FlagSet) SetInterspersed(interspersed bool) {
 	f.interspersed = interspersed
@@ -552,7 +564,7 @@ func (f *FlagSet) Parse(arguments []string) error {
 	err := f.parseArgs(arguments, set)
 	if err != nil {
 		switch f.errorHandling {
-		case ContinueOnError:
+		case ContinueOnError, ContinueOnErrorWithWarn:
 			return err
 		case ExitOnError:
 			fmt.Println(err)
@@ -576,7 +588,7 @@ func (f *FlagSet) ParseAll(arguments []string, fn func(flag *Flag, value string)
 	err := f.parseArgs(arguments, fn)
 	if err != nil {
 		switch f.errorHandling {
-		case ContinueOnError:
+		case ContinueOnError, ContinueOnErrorWithWarn:
 			return err
 		case ExitOnError:
 			os.Exit(2)
