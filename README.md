@@ -39,3 +39,8 @@ with no changes.
 ``` go
 import flag "github.com/rsb/pflag"
 ```
+
+
+
+### Porting code from Spf13/pflag
+`float32_slice_test` is where I need to pickup.
