@@ -36,7 +36,7 @@ const (
 	ContinueOnError ErrorHandling = iota
 
 	// ContinueOnErrorWithWarn will return err from Parse() if an error is found
-	// and will print a warning with
+	// and will print a warning with usage to the output
 	ContinueOnErrorWithWarn
 
 	// ExitOnError will call os.Exit(2) if an error is found when parsing
