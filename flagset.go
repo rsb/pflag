@@ -363,8 +363,7 @@ func (f *FlagSet) FlagUsagesWrapped(cols int) string {
 
 	lines := make([]string, 0, len(f.formal))
 
-	maxLen := 0
-
+	maxlen := 0
 	f.VisitAll(func(flag *Flag) {
 		if flag.Hidden {
 			return
@@ -372,16 +371,15 @@ func (f *FlagSet) FlagUsagesWrapped(cols int) string {
 
 		line := ""
 		if flag.Short != "" && flag.ShortDeprecated == "" {
-			line = fmt.Sprintf(" %s, --%s", flag.Short, flag.Name)
+			line = fmt.Sprintf("  -%s, --%s", flag.Short, flag.Name)
 		} else {
-			line = fmt.Sprintf("     --%s", flag.Name)
+			line = fmt.Sprintf("      --%s", flag.Name)
 		}
 
-		varName, usage := UnquoteUsage(flag)
-		if varName != "" {
-			line += " " + varName
+		varname, usage := UnquoteUsage(flag)
+		if varname != "" {
+			line += " " + varname
 		}
-
 		if flag.NoOptDefVal != "" {
 			switch flag.Value.Type() {
 			case "string":
@@ -402,8 +400,8 @@ func (f *FlagSet) FlagUsagesWrapped(cols int) string {
 		// This special character will be replaced with spacing once the
 		// correct alignment is calculated
 		line += "\x00"
-		if len(line) > maxLen {
-			maxLen = len(line)
+		if len(line) > maxlen {
+			maxlen = len(line)
 		}
 
 		line += usage
@@ -413,21 +411,19 @@ func (f *FlagSet) FlagUsagesWrapped(cols int) string {
 			} else {
 				line += fmt.Sprintf(" (default %s)", flag.Default)
 			}
-
-			if len(flag.Deprecated) != 0 {
-				line += fmt.Sprintf(" (DEPRECATED: %s)", flag.Deprecated)
-			}
-
-			lines = append(lines, line)
 		}
+		if len(flag.Deprecated) != 0 {
+			line += fmt.Sprintf(" (DEPRECATED: %s)", flag.Deprecated)
+		}
+
+		lines = append(lines, line)
 	})
 
 	for _, line := range lines {
-		sIndex := strings.Index(line, "\x00")
-		spacing := strings.Repeat(" ", maxLen-sIndex)
-		// maxlen + 2 comes from + 1 for the \x00 and + 1
-		// for the (deliberate) off-by-one in maxlen-sIndex
-		_, _ = fmt.Fprintln(buf, line[:sIndex], spacing, wrap(maxLen+2, cols, line[sIndex+1:]))
+		sidx := strings.Index(line, "\x00")
+		spacing := strings.Repeat(" ", maxlen-sidx)
+		// maxlen + 2 comes from + 1 for the \x00 and + 1 for the (deliberate) off-by-one in maxlen-sidx
+		_, _ = fmt.Fprintln(buf, line[:sidx], spacing, wrap(maxlen+2, cols, line[sidx+1:]))
 	}
 
 	return buf.String()

@@ -309,6 +309,25 @@ func PrintDefaults() {
 	CommandLine.PrintDefaults()
 }
 
+// Parse parses the command-line flags from os.Args[1:].  Must be called
+// after all flags are defined and before flags are accessed by the program.
+func Parse() {
+	// Ignore errors; CommandLine is set for ExitOnError.
+	_ = CommandLine.Parse(os.Args[1:])
+}
+
+// Arg returns the i'th command-line argument.  Arg(0) is the first remaining argument
+// after flags have been processed.
+func Arg(i int) string {
+	return CommandLine.Arg(i)
+}
+
+// NArg is the number of arguments remaining after flags have been processed.
+func NArg() int { return len(CommandLine.args) }
+
+// Args returns the non-flag command-line arguments.
+func Args() []string { return CommandLine.args }
+
 // Additional routines compiled into the package only during testing.
 
 // ResetForTesting clears all flag state and sets the usage function as directed.
