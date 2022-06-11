@@ -40,17 +40,6 @@ with no changes.
 import flag "github.com/rsb/pflag"
 ```
 
-
-## Usage
-
-pflag is a drop-in replacement of Go's native flag package. If you import
-pflag under the name "flag" then all code should continue to function
-with no changes.
-
-``` go
-import flag "github.com/spf13/pflag"
-```
-
 There is one exception to this: if you directly instantiate the Flag struct
 there is one more field "Shorthand" that you will need to set.
 Most code never instantiates this struct directly, and instead uses
