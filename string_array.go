@@ -63,6 +63,15 @@ func stringArrayConv(sval string) (interface{}, error) {
 	return readAsCSV(sval)
 }
 
+// GetStringArray return the []string value of a flag with the given name
+func (f *FlagSet) GetStringArray(name string) ([]string, error) {
+	val, err := f.getFlagType(name, "stringArray", stringArrayConv)
+	if err != nil {
+		return []string{}, err
+	}
+	return val.([]string), nil
+}
+
 // StringArrayVar defines a string flag with specified name, default value, and usage string.
 // The argument p points to a []string variable in which to store the values of the multiple flags.
 // The value of each argument will not try to be separated by comma. Use a StringSlice for that.
